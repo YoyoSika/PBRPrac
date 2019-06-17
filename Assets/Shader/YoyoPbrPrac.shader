@@ -10,7 +10,7 @@ Shader "YoyoPbrPrac"
 		 _Control("R(metallic)G(AO)B(Rough)", 2D) = "white" {}
 		 metalpower("metallic",Range(0,1)) = 1
 		 smoothpower("smooth",Range(-3,1)) = 1
-		 _AOPower("AOPower",Range(0,1)) = 1
+		 aopower("ao",Range(0,1)) = 1
 	}
 		SubShader
 		 {
@@ -54,9 +54,8 @@ Shader "YoyoPbrPrac"
 			  uniform fixed4 _Color;
 			  uniform fixed smoothpower;
 			  uniform fixed metalpower;
-			  fixed _CullOff;
 
-			  fixed _AOPower;
+			  fixed aopower;
 
 			  /////////////////
 			  struct VertexInput {
@@ -132,7 +131,7 @@ Shader "YoyoPbrPrac"
 				  //BRDF - diffuse
 				  fixed kd = (1 - fresnel) * (1 - metalic);
 				  fixed3 diffuse = kd * max(0, LdotN)*_LightColor0.rgb * albedo ;
-				  diffuse = lerp(diffuse, diffuse*ao, _AOPower);
+				  diffuse = lerp(diffuse, diffuse*ao, aopower);
 				  
 				  //接受影子
 				  fixed attenuation = LIGHT_ATTENUATION(i);
