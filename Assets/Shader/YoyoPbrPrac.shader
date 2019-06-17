@@ -119,14 +119,13 @@ Shader "YoyoPbrPrac"
 
 
 				  float LdotN = max(0.001,dot(lightDirection, worldNormal));
-				  float LdotH = dot(lightDirection, halfDirection);//max(0.001,dot(lightDirection, halfDirection));
 				  float NdotV = dot(worldNormal, viewDirection);// max(0.001, dot(worldNormal, viewDirection));
 				  float NdotH = max(0.001,dot(worldNormal, halfDirection));
 
 				  //fresnel
 				  float3 F0 = lerp(unity_ColorSpaceDielectricSpec.rgb, albedo, metalic);
 				  //unity_ColorSpaceDielectricSpec 是一个很暗的值,模拟金属的黯淡
-				  float3 fresnel = F0 + (1 - F0)  * pow(1 - LdotH, 5);
+				  float3 fresnel = F0 + (1 - F0)  * pow(1 - NdotV, 5);
 
 				  //BRDF - diffuse
 				  fixed kd = (1 - fresnel) * (1 - metalic);
@@ -175,7 +174,7 @@ Shader "YoyoPbrPrac"
 
 				  fixed3 finalColor =  brdf + ibl;
 				  //debug code
-				  //finalColor = fixed3(LdotH, LdotH,LdotH);
+				  //finalColor = fixed3(NdotV, NdotV, NdotV);
 				  fixed4 finalRGBA = fixed4(finalColor,mainColor.a)*_Color;
 				  UNITY_APPLY_FOG(i.fogCoord, finalRGBA);
 
