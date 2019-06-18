@@ -9,7 +9,7 @@ Shader "YoyoPbrPrac"
 		 _CubeMap("CubeMap", Cube) = "_Skybox" {}
 		 _Control("R(metallic)G(AO)B(Rough)", 2D) = "white" {}
 		 metalpower("metallic",Range(0,1)) = 1
-		 smoothpower("smooth",Range(-3,1)) = 1
+		 smoothpower("smooth",Range(-1,1)) = 1
 		 aopower("ao",Range(0,1)) = 1
 	}
 		SubShader
@@ -93,7 +93,6 @@ Shader "YoyoPbrPrac"
 				  return F0 + (max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 			  }
 			  float4 frag(VertexOutput i) : COLOR {
-
 				  i.normalDir = normalize(i.normalDir);
 				  fixed3x3 tangentTransform = fixed3x3(i.tangentDir, i.bitangentDir, i.normalDir);
 				  //↑↑↑↑↑↑这里是做按行排列，所以是从 世界坐标系转法线坐标系的矩阵 ↑↑↑↑↑↑
@@ -109,22 +108,18 @@ Shader "YoyoPbrPrac"
 				  fixed metalic = controlMap.r *metalpower ;
 				  fixed roughness =  controlMap.b * (1-smoothpower);  
 				  fixed ao = controlMap.g ;
+				  float perceptualRoughness = sqrt(roughness);
 				  
 				  fixed4 mainColor = tex2D(_MainTex,i.uv0);
 				  fixed3 albedo = mainColor.rgb;
 
-
-
-				  float perceptualRoughness = sqrt(roughness);
-
-
-				  float LdotN = max(0.001,dot(lightDirection, worldNormal));
-				  float NdotV = dot(worldNormal, viewDirection);// max(0.001, dot(worldNormal, viewDirection));
-				  float NdotH = max(0.001,dot(worldNormal, halfDirection));
+				  float LdotN = max(0.001, dot(lightDirection, worldNormal));//避免被除以0
+				  float NdotV = max(0.001,dot(worldNormal, viewDirection));//避免被除以0
+				  float NdotH = max(0,dot(worldNormal, halfDirection));
 
 				  //fresnel
+				  //unity_ColorSpaceDielectricSpec 是一个很暗的值,模拟金属的黯淡散射
 				  float3 F0 = lerp(unity_ColorSpaceDielectricSpec.rgb, albedo, metalic);
-				  //unity_ColorSpaceDielectricSpec 是一个很暗的值,模拟金属的黯淡
 				  float3 fresnel = F0 + (1 - F0)  * pow(1 - NdotV, 5);
 
 				  //BRDF - diffuse
@@ -138,11 +133,11 @@ Shader "YoyoPbrPrac"
 
 				  //BRDF - Cook-Torrance
 				  //V 与 D
-				  half V = SmithBeckmannVisibilityTerm(LdotN, NdotV, roughness );
+				  half V = SmithBeckmannVisibilityTerm(LdotN, NdotV, roughness );//这里面做了1/4
 				  half D = NDFBlinnPhongNormalizedTerm(NdotH, PerceptualRoughnessToSpecPower(perceptualRoughness));
 
-				  float3 brdfSpecular = _LightColor0 * fresnel * V * D ;
-				  float3 brdf = brdfSpecular + 4 * diffuse/ UNITY_PI;
+				  float3 brdfSpecular = _LightColor0 * fresnel * V * D *  UNITY_PI;//按道理应该是diffuse除以pi ，但是hack一下，仅对specualr * pi
+				  float3 brdf = brdfSpecular + diffuse;
 
 				  //IBL - cubeMap
 				  float3 ibl;
