@@ -112,11 +112,12 @@ Shader "YoyoPbrPrac"
 				  float LdotN = max(0.001, dot(lightDirection, worldNormal));//避免被除以0
 				  float NdotV = max(0.001,dot(worldNormal, viewDirection));//避免被除以0
 				  float NdotH = max(0,dot(worldNormal, halfDirection));
+				  float LdotH = max(0, dot(lightDirection, halfDirection));
 
 				  //fresnel
 				  //unity_ColorSpaceDielectricSpec 是一个很暗的值,模拟金属的黯淡散射
 				  float3 F0 = lerp(unity_ColorSpaceDielectricSpec.rgb, albedo, metalic);
-				  float3 fresnel = F0 + (1 - F0)  * pow(1 - NdotV, 5); 
+				  float3 fresnel = F0 + (1 - F0)  * pow(1 - LdotH, 5); // Unity 本身使用的是 LdotH 据说是对GGXTerm方法的修正emm
 				  //便于理解的话 可以写成这个 
 				  //F0 = lerp(unity_ColorSpaceDielectricSpec , 1, metalic) * albedo
 				  //fresnel = lerp(F0 , 1 , 1- (nv)^5)，可以直观的看出来，metalic越大 -> F0越大->fresnel 的初始值越 大
@@ -157,14 +158,16 @@ Shader "YoyoPbrPrac"
 //				  half D = NDFBlinnPhongNormalizedTerm(NdotH, PerceptualRoughnessToSpecPower(perceptualRoughness));
 //#endif
 
-				  float3 brdfSpecular = _LightColor0 * fresnel * V * D *  UNITY_PI;//按道理应该是diffuse除以pi ，但是hack一下，仅对specualr * pi ，这样与传统的光照模型亮度做统一
+				  float3 brdfSpecular = _LightColor0 * fresnel * V * D *  UNITY_PI  ;//按道理应该是diffuse除以pi ，但是hack一下，仅对specualr * pi ，这样与传统的光照模型亮度做统一
+				  brdfSpecular = max(0, brdfSpecular * LdotN);
+
 				  float3 brdf = brdfSpecular + diffuse;
 
 				  //IBL image-based lighting 
 				  //大概做法是以烘焙好的贴图作为环境光的光照来源
 				  //然后依据这个输入，再做一次类似于BRDF的计算（与直接光的brdf还是有些不同）
 				  //ibl diffuse 的光 来源于 SH 重建的光照积分cubemap
-				  //ibl specular 来源于 自己定义的cubemap 或者天空盒等内置的cubemap 比如 unity_SpecCube0
+				  //ibl specular 来源于 自己定义的cubemap 或者Unity 内置生成的 unity_SpecCube0 它是天空盒+probe 二者影响算出来的cubemap
 				  float3 ibl;
 
 				  //ibl diffuse  todo : 如果有lightmap 则直接读lightmap 否则自己算  LIGHTMAP_ON
@@ -177,7 +180,7 @@ Shader "YoyoPbrPrac"
 				  //重建Unity预处理生成的光照积分贴图，Unity把积分后的光照信息存储在了一组正交函数的系数上
 				  //ShadeSH9函数可以重新取出了这部分的光照信息
 				  //所谓的光照积分贴图是根据lightingSetting中的设置的环境光来源生成的,它可能是  SkyBox的CubeMap 、 梯度颜色 、 或者单纯就是 一个color
-				  float3 ambient_contrib = ShadeSH9(float4(worldNormal, 1)); //todo 如果有LightProbe数据，这里可以用 lightprobe的数据代替而不是 ShadeSH9
+				  float3 ambient_contrib = ShadeSH9(float4(worldNormal, 1)); 
 				  float3 ambient = 0.03 * albedo;
 				  float3 iblDiffuse = max(half3(0, 0, 0), ambient + ambient_contrib);
 				  float3 iblDiffuseResult = iblDiffuse * kdIBL * albedo;
@@ -185,15 +188,23 @@ Shader "YoyoPbrPrac"
 				  //ibl specular
 
 				  //环境光照贴图，根据粗糙度 做mipmap的采样
-				  fixed cubeMip = perceptualRoughnessToMipmapLevel(perceptualRoughness);// 根据粗糙度得到CubeMap的LOD级别，越粗糙，越不需要CubeMap的反射
-				  fixed4 iblSpecular = texCUBElod(_CubeMap, fixed4(viewReflectDirection,cubeMip));//带LOD采CubeMap , 类似于 prdf specular 的 D 部分
+				  // 根据粗糙度得到CubeMap的LOD级别，越粗糙，越模糊
+				  fixed cubeMip = perceptualRoughnessToMipmapLevel(perceptualRoughness);
+				  //可选使用unity_SpecCube0或者自定义的cubemap
+				  //如果有多个probe参与，还需要有unity_SpecCube0 、 unity_SpecCube1 等之间的混合，这里就不做了
+				  //带LOD采CubeMap , 类似于 brdf specular 的 D 部分
+				  fixed4 iblSpecular = texCUBElod(_CubeMap, fixed4(viewReflectDirection,cubeMip));
+				  iblSpecular.rgb = DecodeHDR(iblSpecular, unity_SpecCube0_HDR);
 
 				  //以下是Unity Standard BRDF 中的实现
-				  float oneMinusReflectivity = 1 - max(max(brdfSpecular.r, brdfSpecular.g), brdfSpecular.b);  // 反射率
-				  float grazingTerm = saturate(1 - roughness + (1 - oneMinusReflectivity)); // 这个是计算F90 , 这里的 F90 根据反射率去计算的 grazing其实就有这个中文意思
+				  float reflectivity = max(max(brdfSpecular.r, brdfSpecular.g), brdfSpecular.b);  // 反射率
+				  // 这个是计算F90 , 这里的 F90 根据反射率去计算的 grazing其实就有这个中文意思
+				  float grazingTerm = saturate(1 - roughness + reflectivity); //smooth + reflectivity
 
-				  fixed3 surfaceReduction = 1.0 / (roughness*roughness + 1.0); // 感觉类似于prdf的 V 部分 ，是一个近似拟合 ，Unreal和opengl 用的是一个 采LUT图的方案
-				  fixed3 iblSpecularResult = iblSpecular.rgb *  surfaceReduction  * FresnelLerp(brdfSpecular, grazingTerm, NdotV); // FresnelLerp补上了最后一个Fresnel的影响
+				  // 感觉类似于brdf的 V 部分 ，是一个近似拟合 ，Unreal和opengl 用的是一个 采LUT图的方案
+				  fixed3 surfaceReduction = 1.0 / (roughness*roughness + 1.0); 
+				  // FresnelLerp补上了最后一个Fresnel的影响
+				  fixed3 iblSpecularResult = iblSpecular.rgb *  surfaceReduction  * FresnelLerp(brdfSpecular, grazingTerm, NdotV); 
 
 				  ibl = iblDiffuseResult + iblSpecularResult;
 				  
@@ -203,7 +214,7 @@ Shader "YoyoPbrPrac"
 				  //todo 伽马校正？
 
 				  //debug code
-				  //finalColor = brdfSpecular;// fixed3(NdotV, NdotV, NdotV);
+				  //finalColor = fresnel;// fixed3(NdotV, NdotV, NdotV);
 				  fixed4 finalRGBA = fixed4(finalColor,mainColor.a)*_Color;
 				  UNITY_APPLY_FOG(i.fogCoord, finalRGBA);
 				  return finalRGBA;
