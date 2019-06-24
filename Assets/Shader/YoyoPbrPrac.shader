@@ -8,6 +8,7 @@ Shader "YoyoPbrPrac"
 		 _Normal("Normal", 2D) = "bump" {}
 		 _CubeMap("CubeMap", Cube) = "_Skybox" {}
 		 _Control("R(metallic)G(AO)B(Rough) 注意需要线性空间", 2D) = "white" {}
+		 _SpecColor("SpecColor",Color) = (0.2,0.2,0.2)
 		 metalpower("metallic",Range(0,1)) = 1
 		 smoothpower("smooth",Range(-1,1)) = 1
 		 aopower("ao",Range(0,1)) = 1
@@ -204,7 +205,7 @@ Shader "YoyoPbrPrac"
 				  // 感觉类似于brdf的 V 部分 ，是一个近似拟合 ，Unreal和opengl 用的是一个 采LUT图的方案
 				  fixed3 surfaceReduction = 1.0 / (roughness*roughness + 1.0); 
 				  // FresnelLerp补上了最后一个Fresnel的影响
-				  fixed3 iblSpecularResult = iblSpecular.rgb *  surfaceReduction  * FresnelLerp(brdfSpecular, grazingTerm, NdotV); 
+				  fixed3 iblSpecularResult = iblSpecular.rgb *  surfaceReduction  * FresnelLerp(_SpecColor, grazingTerm, NdotV);
 
 				  ibl = iblDiffuseResult + iblSpecularResult;
 				  
@@ -214,7 +215,7 @@ Shader "YoyoPbrPrac"
 				  //todo 伽马校正？
 
 				  //debug code
-				  //finalColor = fresnel;// fixed3(NdotV, NdotV, NdotV);
+				  //finalColor = brdfSpecular;// fixed3(NdotV, NdotV, NdotV);
 				  fixed4 finalRGBA = fixed4(finalColor,mainColor.a)*_Color;
 				  UNITY_APPLY_FOG(i.fogCoord, finalRGBA);
 				  return finalRGBA;
