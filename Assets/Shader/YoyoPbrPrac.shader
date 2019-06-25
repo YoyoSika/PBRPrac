@@ -57,7 +57,15 @@ Shader "YoyoPbrPrac"
 			  uniform fixed metalpower;
 
 			  fixed aopower;
-
+			  float3 ACESToneMapping(float3 color)
+			  {
+				  const float A = 2.51;
+				  const float B = 0.03;
+				  const float C = 2.43;
+				  const float D = 0.59;
+				  const float E = 0.14;
+				  return (color * (A * color + B)) / (color * (C * color + D) + E);
+			  }
 			  /////////////////
 			  struct VertexInput {
 				  float4 vertex : POSITION;
@@ -212,7 +220,8 @@ Shader "YoyoPbrPrac"
 
 				  fixed3 finalColor =  brdf + ibl;
 
-				  //todo 伽马校正？
+				  //ToneMapping
+				  finalColor = ACESToneMapping(finalColor);
 
 				  //debug code
 				  //finalColor = brdfSpecular;// fixed3(NdotV, NdotV, NdotV);
