@@ -76,20 +76,24 @@ Shader "YoyoPbrPrac"
 			  struct VertexOutput {
 				  float4 pos : SV_POSITION;
 				  half2 uv0 : TEXCOORD0;
-				  float4 posWorld : TEXCOORD1;
-				  float3 normalDir : TEXCOORD2;
-				  float3 tangentDir : TEXCOORD3;
-				  float3 bitangentDir : TEXCOORD4;
-				  LIGHTING_COORDS(5,6)
-				  UNITY_FOG_COORDS(7)
+				  float4 normalDir : TEXCOORD1;
+				  float4 tangentDir : TEXCOORD2;
+				  float4 bitangentDir : TEXCOORD3;
+				  LIGHTING_COORDS(4,5)
+				  UNITY_FOG_COORDS(6)
 			  };
 			  VertexOutput vert(VertexInput v) {
 				  VertexOutput o = (VertexOutput)0;
 				  o.uv0 =  TRANSFORM_TEX(v.texcoord0, _MainTex);
-				  o.normalDir = UnityObjectToWorldNormal(v.normal);
-				  o.tangentDir = normalize(mul(unity_ObjectToWorld, fixed4(v.tangent.xyz, 0.0)).xyz);
-				  o.bitangentDir = normalize(cross(o.normalDir, o.tangentDir) * v.tangent.w);
-				  o.posWorld = mul(unity_ObjectToWorld, v.vertex);
+				  o.normalDir.xyz = UnityObjectToWorldNormal(v.normal);
+				  o.tangentDir.xyz = normalize(mul(unity_ObjectToWorld, fixed4(v.tangent.xyz, 0.0)).xyz);
+				  o.bitangentDir.xyz = normalize(cross(o.normalDir, o.tangentDir) * v.tangent.w);
+
+				  float3 posWorld = mul(unity_ObjectToWorld, v.vertex);
+				  o.normalDir.w = posWorld.x;
+				  o.tangentDir.w = posWorld.y;
+				  o.bitangentDir.w = posWorld.z;
+				  
 				  o.pos = UnityObjectToClipPos(v.vertex);
 				  
 				  UNITY_TRANSFER_FOG(o,o.pos);
@@ -97,12 +101,12 @@ Shader "YoyoPbrPrac"
 				  return o;
 			  }
 			  float4 frag(VertexOutput i) : COLOR {
-				  i.normalDir = normalize(i.normalDir);
-				  fixed3x3 tangentTransform = fixed3x3(i.tangentDir, i.bitangentDir, i.normalDir);
+				  fixed3x3 tangentTransform = fixed3x3(i.tangentDir.xyz, i.bitangentDir.xyz, i.normalDir.xyz);
 				  //↑↑↑↑↑↑这里是做按行排列，所以是从 世界坐标系转法线坐标系的矩阵 ↑↑↑↑↑↑
 
+				  fixed3 posWorld = fixed3(i.normalDir.w, i.tangentDir.w, i.bitangentDir.w);
 				  fixed3 tangentNormal = UnpackNormal(tex2D(_Normal, i.uv0));
-				  fixed3 viewDirection = normalize(_WorldSpaceCameraPos.xyz - i.posWorld.xyz);
+				  fixed3 viewDirection = normalize(_WorldSpaceCameraPos.xyz - posWorld.xyz);
 				  float3 worldNormal = normalize(mul(tangentNormal, tangentTransform));//左乘到世界坐标系
 				  fixed3 viewReflectDirection = reflect(-viewDirection, worldNormal);//视角的对称方向，用来采CubeMap
 				  fixed3 lightDirection = normalize(_WorldSpaceLightPos0.xyz);
