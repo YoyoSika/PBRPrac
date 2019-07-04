@@ -78,11 +78,10 @@ Shader "YoyoPbrPrac"
 				  half2 uv0 : TEXCOORD0;
 				  float4 posWorld : TEXCOORD1;
 				  float3 normalDir : TEXCOORD2;
-				  float2 scrollUv : TEXCOORD3;
-				  float3 tangentDir : TEXCOORD4;
-				  float3 bitangentDir : TEXCOORD5;
-				  LIGHTING_COORDS(6,7)
-				  UNITY_FOG_COORDS(8)
+				  float3 tangentDir : TEXCOORD3;
+				  float3 bitangentDir : TEXCOORD4;
+				  LIGHTING_COORDS(5,6)
+				  UNITY_FOG_COORDS(7)
 			  };
 			  VertexOutput vert(VertexInput v) {
 				  VertexOutput o = (VertexOutput)0;
