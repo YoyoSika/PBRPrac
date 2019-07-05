@@ -192,6 +192,7 @@ Shader "YoyoPbrPrac"
 				  //重建Unity预处理生成的光照积分贴图，Unity把积分后的光照信息存储在了一组正交函数的系数上
 				  //ShadeSH9函数可以重新取出了这部分的光照信息
 				  //所谓的光照积分贴图是根据lightingSetting中的设置的环境光来源生成的,它可能是  SkyBox的CubeMap 、 梯度颜色 、 或者单纯就是 一个color
+				  //如果有LightProbe的话，也会在这里体现
 				  float3 ambient_contrib = ShadeSH9(float4(worldNormal, 1)); 
 				  float3 ambient = 0.03 * albedo;
 				  float3 iblDiffuse = max(half3(0, 0, 0), ambient + ambient_contrib);
@@ -227,8 +228,8 @@ Shader "YoyoPbrPrac"
 				  finalColor = ACESToneMapping(finalColor);
 
 				  //debug code
-				  //finalColor = brdfSpecular;// fixed3(NdotV, NdotV, NdotV);
-				  fixed4 finalRGBA = fixed4(finalColor,mainColor.a)*_Color;
+				  //finalColor = brdfSpecular;// fixed3(NdotV, NdotV, NdotV); //fixed4(ambient_contrib.xyz,1);
+				  fixed4 finalRGBA =  fixed4(finalColor,mainColor.a)*_Color;
 				  UNITY_APPLY_FOG(i.fogCoord, finalRGBA);
 				  return finalRGBA;
 
