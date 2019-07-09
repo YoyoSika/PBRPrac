@@ -55,8 +55,8 @@ Shader "YoyoPbrPrac"
 			  uniform fixed4 _Color;
 			  uniform fixed smoothpower;
 			  uniform fixed metalpower;
+			  uniform fixed aopower;
 
-			  fixed aopower;
 			  float3 ACESToneMapping(float3 color)
 			  {
 				  const float A = 2.51;
@@ -72,6 +72,9 @@ Shader "YoyoPbrPrac"
 				  float3 normal : NORMAL;
 				  float4 tangent : TANGENT;
 				  half2 texcoord0 : TEXCOORD0;
+#ifdef LIGHTMAP_ON
+				  float2 texcoord1 : TEXCOORD1;
+#endif
 			  };
 			  struct VertexOutput {
 				  float4 pos : SV_POSITION;
@@ -81,6 +84,9 @@ Shader "YoyoPbrPrac"
 				  float4 bitangentDir : TEXCOORD3;
 				  LIGHTING_COORDS(4,5)
 				  UNITY_FOG_COORDS(6)
+#ifdef LIGHTMAP_ON
+				  float2 lightmapUV : TEXCOORD7;
+#endif
 			  };
 			  VertexOutput vert(VertexInput v) {
 				  VertexOutput o = (VertexOutput)0;
@@ -95,7 +101,10 @@ Shader "YoyoPbrPrac"
 				  o.bitangentDir.w = posWorld.z;
 				  
 				  o.pos = UnityObjectToClipPos(v.vertex);
-				  
+#ifdef LIGHTMAP_ON
+				  o.lightmapUV = v.texcoord1.xy * unity_LightmapST.xy + unity_LightmapST.zw;
+#endif
+
 				  UNITY_TRANSFER_FOG(o,o.pos);
 				  TRANSFER_VERTEX_TO_FRAGMENT(o)//根据该pass处理的光源类型（ spot 或 point 或 directional ）来计算光源坐标的具体值，以及进行和 shadow 相关的计算等
 				  return o;
@@ -182,18 +191,27 @@ Shader "YoyoPbrPrac"
 				  //ibl specular 来源于 自己定义的cubemap 或者Unity 内置生成的 unity_SpecCube0 它是天空盒+probe 二者影响算出来的cubemap
 				  float3 ibl;
 
-				  //ibl diffuse  todo : 如果有lightmap 则直接读lightmap 否则自己算  LIGHTMAP_ON
+				  //ibl diffuse
 
 				  //fresnelSchlickRoughness 
 				  //基于经验的调整 roughness 参与运算得到的fresnel  , F90 取 1 - roughness
 				  float3 fresnelRough = FresnelLerp(F0,saturate(1 - roughness), NdotV);
 				  float kdIBL = (1 - fresnelRough) * (1 - metalic);
 
+
+
+#ifdef LIGHTMAP_ON
+				  float3 ambient_contrib = DecodeLightmap(UNITY_SAMPLE_TEX2D(unity_Lightmap, i.lightmapUV));// +ShadeSH9(float4(worldNormal, 1));
+#else		
 				  //重建Unity预处理生成的光照积分贴图，Unity把积分后的光照信息存储在了一组正交函数的系数上
 				  //ShadeSH9函数可以重新取出了这部分的光照信息
 				  //所谓的光照积分贴图是根据lightingSetting中的设置的环境光来源生成的,它可能是  SkyBox的CubeMap 、 梯度颜色 、 或者单纯就是 一个color
-				  //如果有LightProbe的话，也会在这里体现
-				  float3 ambient_contrib = ShadeSH9(float4(worldNormal, 1)); 
+				  //如果有LightProbe的话，也会在ShadeSH9这里体现
+				  float3 ambient_contrib = ShadeSH9(float4(worldNormal, 1));
+#endif
+
+
+
 				  float3 ambient = 0.03 * albedo;
 				  float3 iblDiffuse = max(half3(0, 0, 0), ambient + ambient_contrib);
 				  float3 iblDiffuseResult = iblDiffuse * kdIBL * albedo;
@@ -228,7 +246,9 @@ Shader "YoyoPbrPrac"
 				  finalColor = ACESToneMapping(finalColor);
 
 				  //debug code
-				  //finalColor = brdfSpecular;// fixed3(NdotV, NdotV, NdotV); //fixed4(ambient_contrib.xyz,1);
+#ifdef LIGHTMAP_ON
+				  finalColor = ShadeSH9(float4(worldNormal, 1));// lightMapColor;// fixed3(NdotV, NdotV, NdotV); //fixed4(ambient_contrib.xyz,1);
+#endif
 				  fixed4 finalRGBA =  fixed4(finalColor,mainColor.a)*_Color;
 				  UNITY_APPLY_FOG(i.fogCoord, finalRGBA);
 				  return finalRGBA;
