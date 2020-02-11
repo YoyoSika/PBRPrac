@@ -246,9 +246,9 @@ Shader "YoyoPbrPrac"
 				  finalColor = ACESToneMapping(finalColor);
 
 				  //debug code
-#ifdef LIGHTMAP_ON
-				  finalColor = ShadeSH9(float4(worldNormal, 1));// lightMapColor;// fixed3(NdotV, NdotV, NdotV); //fixed4(ambient_contrib.xyz,1);
-#endif
+//#ifdef LIGHTMAP_ON
+//				  finalColor = ShadeSH9(float4(worldNormal, 1));// lightMapColor;// fixed3(NdotV, NdotV, NdotV); //fixed4(ambient_contrib.xyz,1);
+//#endif
 				  fixed4 finalRGBA =  fixed4(finalColor,mainColor.a)*_Color;
 				  UNITY_APPLY_FOG(i.fogCoord, finalRGBA);
 				  return finalRGBA;
